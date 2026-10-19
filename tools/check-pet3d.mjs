@@ -557,13 +557,20 @@ check(persistBefore === persistAfter, '被拒的写入没有落盘（pet3d.json 
     staleSources(fixtureDir, grouped(fbxRaw + MTIME_TOLERANCE_MS / 2, pngRaw + 0.6528)).length === 0,
     `亚毫秒/亚容差差异（≤${MTIME_TOLERANCE_MS}ms）不算改动`,
   )
+  // The whole point of the seconds-wide window: every way of MOVING a model
+  // breaks its recorded mtimes, so a copied or unzipped folder must read fresh.
+  // Measured drift: 74–83 ms for a plain copy, 1074–1083 ms out of a ZIP.
   check(
-    staleSources(fixtureDir, grouped(fbxRaw + 50, pngRaw)).includes('fixture.fbx'),
-    '真的改了 mtime（+50ms）仍然判为陈旧',
-    String(fbxRaw + 50),
+    staleSources(fixtureDir, grouped(fbxRaw - 83, pngRaw - 1074)).length === 0,
+    `复制/ZIP 解压造成的 mtime 漂移（-83ms / -1074ms）不算改动`,
   )
   check(
-    staleSources(fixtureDir, grouped(fbxRaw, pngRaw + 50)).includes('textures/fixture.png'),
+    staleSources(fixtureDir, grouped(fbxRaw + MTIME_TOLERANCE_MS + 1000, pngRaw)).includes('fixture.fbx'),
+    `超出容差（+${MTIME_TOLERANCE_MS + 1000}ms）仍然判为陈旧`,
+    String(fbxRaw + MTIME_TOLERANCE_MS + 1000),
+  )
+  check(
+    staleSources(fixtureDir, grouped(fbxRaw, pngRaw + MTIME_TOLERANCE_MS + 1000)).includes('textures/fixture.png'),
     '贴图的改动仍然判为陈旧（键是相对路径）',
   )
   check(
@@ -623,6 +630,87 @@ check(persistBefore === persistAfter, '被拒的写入没有落盘（pet3d.json 
   }
 }
 
+// --- the automatic re-import must also stop when the IMPORTER fails --------
+//
+// The bug this locks down: `run()` acted only on success, so a failing import
+// left no trace and the sweep spawned another one every 5 s for the rest of the
+// session (measured: 6 spawns in 32 s, `importStall` empty throughout).
+{
+  const { ImportRunner, AUTO_FAILURE_LIMIT } = await import(pathToFileURL(join(pkgDir, 'src', 'importer.ts')).href)
+  const dir = mkdtempSync(join(tmpdir(), 'pet3d-fail-'))
+  try {
+    const script = join(dir, 'always-fails.mjs')
+    writeFileSync(script, 'process.stderr.write("boom: source fbx is unreadable\\n")\nprocess.exit(1)\n', 'utf8')
+    writeFileSync(join(dir, 'model.fbx'), 'a source that always looks changed', 'utf8')
+    mkdirSync(join(dir, '.import'), { recursive: true })
+    // Stale on purpose: the importer never rewrites this file, so the sweep keeps
+    // offering the directory and every run fails.
+    writeFileSync(join(dir, '.import', 'import.json'), JSON.stringify({
+      revision: 'NEVER-WRITTEN',
+      importerScript: script,
+      sources: { fbx: { path: join(dir, 'model.fbx'), bytes: 999999, mtimeMs: 1 } },
+    }), 'utf8')
+
+    let clock = 1_000_000
+    const runner = new ImportRunner({ script }, () => {}, () => (clock += 10_000))
+
+    // `sweep()` starts a run without awaiting it, so each attempt is drained
+    // through the in-flight promise before the next sweep is judged.
+    const drain = async (swept) => {
+      for (const startedDir of swept.started) await runner.run(startedDir, { auto: true })
+      await sleep(20)
+    }
+
+    for (let attempt = 1; attempt <= AUTO_FAILURE_LIMIT; attempt += 1) {
+      const swept = runner.sweep([dir])
+      check(swept.started.length === 1, `第 ${attempt} 次清扫仍然尝试自动重导入（未达上限）`, JSON.stringify(swept))
+      await drain(swept)
+    }
+    check(runner.stall(dir) !== undefined, `连续失败 ${AUTO_FAILURE_LIMIT} 次后记录停滞原因（面板可见）`, String(runner.stall(dir)))
+    check(
+      String(runner.stall(dir)).includes('连续'),
+      '停滞原因说明是"连续失败"而非"revision 没变"',
+      String(runner.stall(dir)),
+    )
+    check(
+      String(runner.stall(dir)).includes('boom'),
+      '停滞原因带上了导入器的错误摘要（可操作）',
+      String(runner.stall(dir)),
+    )
+
+    const afterLimit = runner.sweep([dir])
+    check(
+      afterLimit.started.length === 0 && afterLimit.skipped.some(skip => skip.reason.includes('自动重导入已停止')),
+      '达到上限后不再自动重导入（不会无限起子进程）',
+      JSON.stringify(afterLimit),
+    )
+
+    // A manual 重载 is explicit intent: it must still run, and its error must
+    // come back rather than being swallowed into the stall state.
+    const manual = await runner.run(dir)
+    check(!manual.ok, '手动"重载"仍然会真的跑一次（错误直接返回）', manual.error)
+
+    // Fixing the cause must revive the sweep WITHOUT a manual click.
+    writeFileSync(join(dir, '.import', 'import.json'), JSON.stringify({
+      revision: 'FIXED',
+      importerScript: script,
+      sources: { 'model.fbx': { size: statSync(join(dir, 'model.fbx')).size, mtimeMs: Math.round(statSync(join(dir, 'model.fbx')).mtimeMs) } },
+    }), 'utf8')
+    const revived = runner.sweep([dir])
+    check(
+      runner.stall(dir) === undefined,
+      '源文件恢复一致后停滞自动解除（不必手动点"重载"）',
+      String(runner.stall(dir)),
+    )
+    check(
+      revived.skipped.some(skip => skip.reason.includes('重新启用')),
+      '解除停滞这件事本身也被报告（不是静默）',
+      JSON.stringify(revived),
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
 // --- M1 wiring: host events -> phase, end to end through the route ---------
 {
   const stateNow = async () => JSON.parse((await call(stateRoute, 'GET', '/api/pet3d/state')).body)

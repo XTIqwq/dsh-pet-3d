@@ -25,7 +25,7 @@
  * Exit code 0 = every check passed.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Writable } from 'node:stream'
@@ -38,6 +38,10 @@ const modelDir = join(modelsRoot, '_fixture')
 const imports = join(modelDir, '.import')
 const generator = join(repoRoot, 'tools', 'make-fixture-model.mjs')
 
+// Read the freshness window from the source of truth rather than hardcoding it:
+// this guard has to move a file's mtime PAST that window to look like a real edit.
+const { MTIME_TOLERANCE_MS } = await import(pathToFileURL(join(pkgDir, 'src', 'importer.ts')).href)
+
 let failures = 0
 const check = (ok, label, detail = '') => {
   if (!ok) failures += 1
@@ -47,7 +51,17 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 // --- 1. the fixture, at variant A ----------------------------------------
 function writeSource(variant) {
-  writeFileSync(join(modelDir, 'fixture.fbx'), `fixture-source variant=${variant} rev=${Date.now()}\n`, 'utf8')
+  const file = join(modelDir, 'fixture.fbx')
+  writeFileSync(file, `fixture-source variant=${variant} rev=${Date.now()}\n`, 'utf8')
+  // The freshness window is SECONDS wide (MTIME_TOLERANCE_MS = 2000) because a
+  // copied or unzipped model always drifts by tens of milliseconds, and treating
+  // that as a change is what made every distributed model re-import forever.
+  // A test that edits a file twice inside the same second therefore has to move
+  // the mtime past that window — otherwise it is asserting that two writes in
+  // the same second look different, which is not what the product promises.
+  // `utimesSync` is how a real edit seconds apart looks to the sweep.
+  const future = new Date(Date.now() + MTIME_TOLERANCE_MS + 1000)
+  utimesSync(file, future, future)
 }
 function ensureFixture(variant) {
   const result = spawnSync(process.execPath, [generator, modelDir, '--json', '--variant', variant], {

@@ -1,7 +1,7 @@
 {
   "name": "dsh-pet-3d",
   "description": "3D 桌宠插件：three.js 渲染器 + 6 状态动作编排 + 悬浮菜单（换装/配饰/互动）+ 检查面板。模型是数据（$DSH_HOME/models/<id>/），插件本身只带代码。",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

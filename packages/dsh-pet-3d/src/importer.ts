@@ -157,8 +157,24 @@ export interface NormalizedSources {
   unknown: string[]
 }
 
-/** Two mtimes name the same source unless they differ by more than this, ms. */
-export const MTIME_TOLERANCE_MS = 2
+/**
+ * Two mtimes name the same source unless they differ by more than this, ms.
+ *
+ * Seconds, not milliseconds, because a model directory is a DISTRIBUTED
+ * artifact: `import.json` records the mtimes of the machine that packed it, and
+ * every way of moving a folder breaks that baseline —
+ *
+ *  - a ZIP stores DOS timestamps, which have 2 s resolution (measured: a freshly
+ *    extracted model drifted 1074–1083 ms on six textures);
+ *  - even a plain copy rewrites mtimes (measured: 74–83 ms).
+ *
+ * At the old 2 ms window every copied model read as permanently changed, which
+ * fed the re-import sweep a 330 MB job every 5 s. A change smaller than 2 s is
+ * allowed to go unnoticed: `size` is still compared exactly, so a real edit of a
+ * source file almost always trips this anyway, and missing one hot update costs
+ * far less than re-importing forever.
+ */
+export const MTIME_TOLERANCE_MS = 2000
 
 /** Whether a JSON value is a plain object. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -377,6 +393,33 @@ export const IMPORT_TIMEOUT_MS = 20 * 60 * 1000
 /** How often the freshness sweep may look at the disk, ms (spec: ≤ once / 5 s). */
 export const SWEEP_MIN_INTERVAL_MS = 5000
 
+/**
+ * Consecutive automatic failures after which a directory stops being re-imported.
+ *
+ * Not 1: a single failure is often transient (a file locked by a viewer, a
+ * temporarily unreadable folder), and giving up on the first one would make the
+ * sweep useless for the case it exists for. Not unbounded: that is the bug this
+ * limit fixes — six spawns in 32 seconds, forever.
+ */
+export const AUTO_FAILURE_LIMIT = 3
+
+/** Longest failure reason carried into `autoStalled`, characters. */
+const MAX_STALL_REASON_CHARS = 160
+
+/**
+ * Compress an importer error into one short line for the panel.
+ *
+ * `ImportOutcome.error` can embed several lines of stderr; the stall reason is
+ * rendered inside a status line, so it has to stay readable.
+ * @param error - the raw failure reason.
+ * @returns a single-line, length-capped summary.
+ */
+function summarizeError(error: string): string {
+  const flat = error.replace(/\s+/gu, ' ').trim()
+  if (flat === '') return '原因未知'
+  return flat.length <= MAX_STALL_REASON_CHARS ? flat : `${flat.slice(0, MAX_STALL_REASON_CHARS)}…`
+}
+
 /** Largest stdout capture (a runaway importer must not eat the host's memory). */
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024
 
@@ -519,6 +562,16 @@ export class ImportRunner {
    * is a far smaller loss than that, so the sweep gives up and says so.
    */
   private readonly autoStalled = new Map<string, string>()
+  /**
+   * Consecutive automatic failures per directory.
+   *
+   * A failing import used to leave NO trace: `run()` only acted on success, so
+   * the 5 s sweep started another 330 MB import for the rest of the session, and
+   * the panel showed nothing wrong. Counting failures is what turns that into a
+   * bounded number of attempts. Only automatic runs count — a manual 重载 is
+   * explicit intent and reports its error straight back over HTTP.
+   */
+  private readonly failureCounts = new Map<string, number>()
   private lastSweep = Number.NEGATIVE_INFINITY
   private readonly onChanged: (modelDir: string) => void
   private readonly now: () => number
@@ -576,6 +629,9 @@ export class ImportRunner {
       this.inflight.delete(modelDir)
       this.lastOutcome.set(modelDir, outcome)
       if (outcome.ok) {
+        // Success resets the failure budget whatever else happens: the importer
+        // is demonstrably able to run against this directory again.
+        this.failureCounts.delete(modelDir)
         if (outcome.revision !== before) {
           // The import actually moved: the directory is healthy again, so the
           // sweep is allowed to keep watching it.
@@ -585,6 +641,17 @@ export class ImportRunner {
             + '继续自动重导入只会反复白跑。修好 import.json 的 sources 记录，或用面板"重载"手动再试。')
         }
         this.onChanged(modelDir)
+      } else if (opts.auto === true) {
+        // A FAILED automatic import has to leave a trace, or the sweep starts the
+        // same job again 5 s later, forever. Count it and stop after a few: the
+        // reason goes to the panel through `stall()` → `/state.importStall`, so a
+        // broken model looks broken instead of looking stuck.
+        const count = (this.failureCounts.get(modelDir) ?? 0) + 1
+        this.failureCounts.set(modelDir, count)
+        if (count >= AUTO_FAILURE_LIMIT) {
+          this.autoStalled.set(modelDir, `自动重导入已停止：连续 ${String(count)} 次导入失败（${summarizeError(outcome.error)}）。`
+            + '修好源文件或导入器后，用面板"重载"手动再试。')
+        }
       }
       return outcome
     })
@@ -625,6 +692,27 @@ export class ImportRunner {
   }
 
   /**
+   * Clear a stall when its CAUSE is gone.
+   *
+   * A stall is a promise not to retry, and the two reasons for one are
+   * transient: the sources were permanently stale, or the importer kept failing.
+   * Once `staleSources` reports nothing, the directory matches its own
+   * `import.json` again — which is exactly what happens when the user drops in a
+   * correct copy, or fixes the source file the failure named. Leaving the stall
+   * in place would then need a manual 重载 to notice a fix that is already on
+   * disk, so the sweep clears it and says so once.
+   * @param modelDir - the model directory.
+   * @returns whether the stall was cleared.
+   */
+  private releaseStall(modelDir: string): boolean {
+    if (!this.autoStalled.has(modelDir)) return false
+    if (staleSources(modelDir, readImportMeta(modelDir)).length !== 0) return false
+    this.autoStalled.delete(modelDir)
+    this.failureCounts.delete(modelDir)
+    return true
+  }
+
+  /**
    * One freshness pass: re-import every idle directory whose sources moved.
    *
    * Throttled to {@link SWEEP_MIN_INTERVAL_MS} because it stats the disk, and
@@ -643,6 +731,11 @@ export class ImportRunner {
     for (const dir of dirs) {
       if (this.busy(dir)) {
         skipped.push({ dir, reason: '已有导入在进行' })
+        continue
+      }
+      // A stall whose cause disappeared must not outlive it — see releaseStall.
+      if (this.releaseStall(dir)) {
+        skipped.push({ dir, reason: '源文件已恢复一致，自动重导入已重新启用' })
         continue
       }
       const eligible = this.autoEligible(dir)
