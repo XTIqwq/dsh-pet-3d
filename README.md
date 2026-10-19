@@ -3,7 +3,7 @@
 > 一个 DSH（DeepSeek Harness）Web GUI 插件：把 3D 模型放进页面角落当桌宠，
 > 按会话状态演动作，鼠标移上去可以换装、戴配饰、互动。
 
-- **版本**：v1.0.3（零运行时依赖）
+- **版本**：v1.0.4（零运行时依赖）
 - **许可**：Apache-2.0，见 [`LICENSE`](LICENSE)；fork 自 `@linxin666/dsh-pet`，见 [`NOTICE`](NOTICE)
 - **第三方组件**：见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)
 - **不含任何游戏模型 / 贴图 / 美术资产**：仓库只带一个约 2 KB 的合成占位模型
@@ -17,23 +17,64 @@
 
 ## 怎么装
 
-```powershell
-# 1) 构建 + 打包（在仓库根）
-pnpm install
-pnpm -C packages/dsh-pet-3d build     # 产物在 packages/dsh-pet-3d/lib/
-pnpm -C packages/dsh-pet-3d pack      # 得到 dsh-pet-3d-1.0.3.tgz
+插件是标准的 DSH 插件包，用 DSH 官方的插件命令安装即可。
 
-# 2) 安装到 profile —— 先确认是哪个 profile
-#    Desktop 一般是 desktop；`dsh web` 用的是 web。装错 profile 等于没装。
-pnpm --dir "$env:USERPROFILE\.dsh\profiles\desktop" add `
-  "packages/dsh-pet-3d/dsh-pet-3d-1.0.3.tgz"
+### 前置
+
+1. 已安装 **DSH Desktop** 或 `dsh web`，并且至少启动过一次（会生成 profile）
+2. 已拿到 `dsh-pet-3d-1.0.4.tgz`（从 Release 下载，或自行构建，见下）
+
+> **先确认装到哪个 profile。** Desktop 用的是 `desktop`，`dsh web` 用的是 `web`，
+> 两者**互不共享**。装错 profile 的表现和「没装」完全一样。
+
+### 方式一：GUI（推荐）
+
+1. 打开 DSH → **设置 → 插件**（或侧边栏的插件页）
+2. 点 **安装 / Add plugin**
+3. 填入 tgz 的**绝对路径**，或直接拖入文件
+4. 安装完成后**完全退出 DSH 再启动**（关窗口不算，主进程还活着）
+
+### 方式二：命令行
+
+```powershell
+dsh plugin --profile desktop add "<tgz 的绝对路径>"
 ```
 
-装完**重启 DSH**（宿主半边在启动时加载；浏览器半边刷新页面即可）。插件自带的
-`cordis.patch.yml` 会插入 `pet3d` 那一行，**不要手工再加**（会得到两条重复行）。
+`dsh web` 用户把 `desktop` 换成 `web`。
+
+> **DSH Desktop 的限制**：桌面客户端的 `desktop` profile 不接受 npm 全局 `dsh`，
+> 必须用 Desktop 自带的 CLI：
+>
+> ```powershell
+> & "<DSH 安装目录>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add "<tgz>"
+> ```
+>
+> 而且**必须真正退出应用**，否则宿主不会重新组合插件。
+
+### 装完之后
+
+**重启 DSH**（宿主半边在启动时加载；浏览器半边刷新页面即可）。
+
+插件自带的 `cordis.patch.yml` 会自动插入 `pet3d` 那一行，**不要手工再加**
+（会得到两条重复行；`mountOnce` 会兜住，但配置看起来是坏的）。
+
+验证：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:19387/api/pet3d/models
+Invoke-RestMethod http://127.0.0.1:19387/api/pet3d/state
+```
+
+### 从源码构建
+
+```powershell
+pnpm install
+pnpm -C packages/dsh-pet-3d build     # 产物在 packages/dsh-pet-3d/lib/
+pnpm -C packages/dsh-pet-3d pack      # 得到 dsh-pet-3d-1.0.4.tgz
+```
 
 > v1.0.3 起 `link:` 安装也能跑（`lib/index.js` 自带 schemastery、导入器自带 three），
-> 但正式分享仍建议用 tgz。
+> 但正式安装仍建议用 tgz。
 
 ## 怎么用
 
@@ -60,16 +101,20 @@ pnpm --dir "$env:USERPROFILE\.dsh\profiles\desktop" add `
 ## 模型与首次运行
 
 仓库**不含**任何游戏 / 角色模型。自带的是 `models/panyinhu-placeholder/`：一个由
-`tools/make-fixture-model.mjs` 生成的合成占位宠物（一个蒙皮小网格 + 两段动画），
-用来让任何人 clone 后立刻跑通插件：
+`tools/make-fixture-model.mjs` 生成的合成占位宠物（一个蒙皮小网格 + 两段动画，
+约 2 KB，Apache-2.0），用来让任何人 clone 后立刻跑通插件：
 
 ```powershell
-node tools/install-models.mjs   # 复制到 $DSH_HOME/models/
+node tools/install-models.mjs   # 复制 models/ 到 $DSH_HOME/models/
 ```
 
 要用自己的模型，把目录放到 `$DSH_HOME/models/<id>/`（`options.json` 的 `phase` 要指向
 `clips.json` 里真实存在的动作名；可选 `appearance.json` / `interactions.json` /
-`choreography.json`）。插件只扫描这个目录，不需要改代码。
+`choreography.json`）。插件只扫描这个目录，不需要改代码。完整格式见
+[`packages/dsh-pet-3d/README.md`](packages/dsh-pet-3d/README.md) 的「模型」一节。
+
+> ⚠️ **模型不适用本仓库的 Apache-2.0 许可**。模型、贴图与动作数据的版权归原作者或
+> 权利人所有，本仓库不授予任何使用许可。请在使用前自行确认已获得相应授权。
 
 ## 验证
 

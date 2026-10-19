@@ -30,8 +30,8 @@ link:<仓库>/packages/dsh-pet-3d
 或打成 tarball 再装：
 
 ```sh
-pnpm pack           # 产出 dsh-pet-3d-1.0.3.tgz
-# GUI 里填： file:<仓库>/packages/dsh-pet-3d/dsh-pet-3d-1.0.3.tgz
+pnpm pack           # 产出 dsh-pet-3d-1.0.4.tgz
+# GUI 里填： file:<仓库>/packages/dsh-pet-3d/dsh-pet-3d-1.0.4.tgz
 ```
 
 > `link:` 安装现在是**可用**的：宿主半边已把 schemastery 打进 `lib/index.js`，
