@@ -1,0 +1,33 @@
+{
+ "version": 1,
+ "clips": [
+  {
+   "name": "Fixture_Arm_Idle_Loop",
+   "duration": 1,
+   "tracks": [
+    {
+     "node": "FixtureArm",
+     "path": "rotation",
+     "count": 3,
+     "components": 4,
+     "timeOffset": 0,
+     "valueOffset": 3
+    }
+   ]
+  },
+  {
+   "name": "Fixture_Galgame_Sad",
+   "duration": 1,
+   "tracks": [
+    {
+     "node": "FixtureArm",
+     "path": "translation",
+     "count": 2,
+     "components": 3,
+     "timeOffset": 15,
+     "valueOffset": 17
+    }
+   ]
+  }
+ ]
+}

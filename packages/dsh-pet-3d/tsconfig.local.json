@@ -1,0 +1,16 @@
+{
+  "//": "Standalone compiler settings (see tsconfig.prepare.json upstream). The repo tsconfig extends the sibling harness checkout, which does not exist here; type checking stays a dev concern.",
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

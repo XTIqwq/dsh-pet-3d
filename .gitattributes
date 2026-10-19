@@ -1,0 +1,29 @@
+# 统一换行符，避免 Windows 上 CRLF / LF 混用
+* text=auto eol=lf
+
+# 脚本与源码
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.mjs  text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Windows 脚本保持 CRLF
+*.ps1  text eol=crlf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+
+# 二进制：不参与换行符转换与文本 diff
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.glb  binary
+*.fbx  binary
+*.bin  binary
+*.tgz  binary
+*.tar.gz binary

@@ -1,0 +1,8 @@
+packages:
+  - '.'
+  - 'packages/*'
+
+autoInstallPeers: false
+nodeLinker: hoisted
+onlyBuiltDependencies:
+  - lightningcss

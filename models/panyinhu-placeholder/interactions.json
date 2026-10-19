@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "pat",
+      "label": "摸摸",
+      "clip": "Fixture_Arm_Idle_Loop",
+      "line": "……",
+      "affinity": 1
+    },
+    {
+      "id": "hello",
+      "label": "招呼",
+      "clip": "Fixture_Galgame_Sad",
+      "line": "你好。",
+      "affinity": 1
+    }
+  ],
+  "affinity": {
+    "max": 5,
+    "lines": [
+      "……",
+      "还不错。"
+    ]
+  }
+}

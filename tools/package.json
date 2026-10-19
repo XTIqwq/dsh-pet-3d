@@ -1,0 +1,7 @@
+{
+  "name": "dsh-pet-3d-tools",
+  "private": true,
+  "type": "module",
+  "description": "Repo-side tooling for the pet's import pipeline and offline guards. Deliberately OUTSIDE the pnpm workspace (see pnpm-workspace.yaml): the importer ships a vendored three under tools/vendor/ and must not perturb the plugin build.",
+  "dependencies": {}
+}

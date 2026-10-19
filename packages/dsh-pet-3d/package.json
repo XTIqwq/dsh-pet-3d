@@ -1,0 +1,63 @@
+{
+  "name": "dsh-pet-3d",
+  "description": "3D 桌宠插件：three.js 渲染器 + 6 状态动作编排 + 悬浮菜单（换装/配饰/互动）+ 检查面板。模型是数据（$DSH_HOME/models/<id>/），插件本身只带代码。",
+  "version": "1.0.3",
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "prepack": "node -e \"const fs=require('node:fs');fs.cpSync('../../tools/pet3d-import.mjs','tools/pet3d-import.mjs');fs.mkdirSync('tools/vendor',{recursive:true});fs.cpSync('../../tools/vendor/three-node.mjs','tools/vendor/three-node.mjs')\""
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/client.js",
+    "lib/client.js.map",
+    "lib/index.js",
+    "lib/three-vendor.js",
+    "tools/pet3d-import.mjs",
+    "tools/vendor/three-node.mjs",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "desktop-pet",
+    "three",
+    "gltf"
+  ],
+  "license": "Apache-2.0",
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4",
+    "three": "0.186.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.2.0-rc.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}

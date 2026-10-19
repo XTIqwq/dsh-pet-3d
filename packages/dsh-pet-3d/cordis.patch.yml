@@ -1,0 +1,11 @@
+# dsh-pet-3d 的 bundle patch：安装时由 DSH 的插件管理器合并，插入一条插件行。
+#
+# 这一行同时挂载两半：
+#   · 宿主半边（lib/index.js）：模型目录扫描、相位状态机、/api/pet3d/* JSON 接口、/pet3d/<id>/* 媒体；
+#   · 浏览器半边（lib/client.js）：three.js/glTF 渲染器，按需再加载 lib/three-vendor.js。
+#
+# 用自己的包名当行名（不接管上游 '@linxin666/dsh-pet' 的槽位）。
+# 装完要重启 DSH 才会挂载宿主半边；浏览器半边随页面刷新即时生效。
+- insert:
+    - id: pet3d
+      name: 'dsh-pet-3d'

@@ -1,0 +1,25 @@
+{
+  "sourceBytes": 43,
+  "sourceSha256": "f9126c44ec154cce22cd109dbbef3ecc8ad193495d3d6e04aa683a1138243a06",
+  "importedAt": "2026-10-19T11:32:50.882Z",
+  "clipCount": 2,
+  "meshVertexTotal": 3,
+  "warnings": [],
+  "revision": "dca1f4191e2d29ed",
+  "artifacts": {
+    "model.glb": "46accb62757e8dbe4dd57f10c88aa31a67bbc9cfe14b5c90e3c32f101fbc83de",
+    "clips.json": "98c1c5fddc53c2100dc6d561abc43055c341f0d364d74f52e2f67e2d306ce70c",
+    "clips.bin": "1c1bad7fe3a53abd9afa0f64bc444a841674866d2838a613f60fee2b62ac65a0",
+    "textures/fixture.png": "b1ff9c8ea3a780bad09b346c423d2d0e46815926879b18e841d928376a946640"
+  },
+  "importerVersion": 1,
+  "sources": {
+    "fixture.fbx": {
+      "size": 43
+    },
+    "textures/fixture.png": {
+      "size": 69,
+      "mtimeMs": 1792409570877
+    }
+  }
+}

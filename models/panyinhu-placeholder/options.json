@@ -1,0 +1,11 @@
+{
+  "scale": 1,
+  "framing": 1.2,
+  "yaw": 0,
+  "phase": {
+    "idle": "Fixture_Arm_Idle_Loop",
+    "run": "Fixture_Galgame_Sad",
+    "done": "Fixture_Galgame_Sad",
+    "failed": "Fixture_Galgame_Sad"
+  }
+}

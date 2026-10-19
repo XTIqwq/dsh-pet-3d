@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────
+# dsh-pet-3d — 公开仓库忽略规则
+#
+# 本仓库有几条“本地保留、不入版本库”的通道：
+#   local/    个人工作流、交接笔记、私人文档（保留在本机）
+#   trash/    从公开树里撤下来的文件，按原路径存放（保留在本机）
+#   .git_bak/ 重写历史前的旧 git 目录备份（保留在本机）
+# 都不进版本库，也不进 npm 包。
+# ─────────────────────────────────────────────────────────────
+
+# --- 本地保留区 ---
+local/
+trash/
+.git_bak/
+/.git_bak/
+
+# --- 归档产物（发布快照，存放在工作区根，不进版本库）---
+achieved/
+/achieved/
+
+# --- 依赖 ---
+node_modules/
+
+# --- 构建产物（发布时由 CI 构建，不入库）---
+packages/*/lib/
+*.tsbuildinfo
+
+# --- 打包产物（npm pack 现场生成）---
+packages/dsh-pet-3d/*.tgz
+# prepack 把仓库 tools/pet3d-import.mjs 拷进包内的副本；仓库里的那份才是源。
+packages/dsh-pet-3d/tools/
+
+# --- 现场产物与回滚点（历史遗留目录名）---
+_work/
+_backup/
+_preview/
+_archive/
+_probe/
+_legacy/
+checkpoints/
+
+# --- 一次性取证产物 ---
+/_last-*.png
+*.tmp
+*.log
+packages/dsh-pet-3d/lib/*-bak
+packages/dsh-pet-3d/lib/*.bak
+
+# --- 系统噪声 ---
+Thumbs.db
+desktop.ini
+.DS_Store
